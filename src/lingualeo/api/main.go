@@ -4,12 +4,12 @@ import (
 	"net/http/cookiejar"
 )
 
-func NewClient(email string, password string) ([]error, Client) {
+func NewClient(email string, password string) (Client, error) {
 	cookieJar, _ := cookiejar.New(nil)
 	client := Client{
 		cookie: cookieJar,
 	}
 	errs := client.authorize(email, password)
 
-	return errs, client
+	return client, errs
 }

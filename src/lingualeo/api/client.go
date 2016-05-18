@@ -1,20 +1,18 @@
 package api
 
 import (
-	"errors"
-	"github.com/franela/goreq"
-	"log"
 	"net/http"
 	"strings"
+
+	"github.com/franela/goreq"
 )
 
+// Client is a LinguaLeo API client
 type Client struct {
 	cookie http.CookieJar
 }
 
-func (c Client) get(url string, requestData interface{}, result interface{}) []error {
-	var errs []error = nil
-
+func (c Client) get(url string, requestData interface{}, result interface{}) error {
 	resp, err := goreq.Request{
 		Uri:         url,
 		QueryString: requestData,
@@ -22,76 +20,87 @@ func (c Client) get(url string, requestData interface{}, result interface{}) []e
 	}.Do()
 
 	if err != nil {
-		errs = append(errs, errors.New(err.Error()))
-		log.Fatalln(err.Error())
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		errs = append(errs, errors.New("Failed login: status code is "+resp.Status))
+		return newWrongResponseStatusError(resp.Status)
 	}
 
-	err = resp.Body.FromJsonTo(&result)
-	if err != nil {
-		errs = append(errs, errors.New(err.Error()))
-		log.Println(err.Error())
+	if err := resp.Body.FromJsonTo(&result); err != nil {
+		return err
 	}
 
-	return errs
+	return err
 }
 
-func (c Client) authorize(email string, password string) []error {
+func (c Client) authorize(email string, password string) error {
+	var err error
+
 	req := LoginRequest{
 		Email:    email,
 		Password: password,
 	}
 
 	var loginResp LoginResponse
-	errs := c.get(loginUrl, req, &loginResp)
+	if err := c.get(loginURL, req, &loginResp); err != nil {
+		return err
+	}
+
 	if strings.TrimSpace(loginResp.ErrorMsg) != "" {
-		errs = append(errs, errors.New("Failed login: "+loginResp.ErrorMsg))
+		err = newResponseError(loginResp.ErrorMsg)
 	}
 
-	return errs
+	return err
 }
 
-func (c Client) validateCredentials(email string, password string) []error {
-	var errs []error = nil
+func (c Client) validateCredentials(email string, password string) error {
+	var err error
 
-	if strings.TrimSpace(email) == "" {
-		errs = append(errs, errors.New("Username should not be empty"))
+	if strings.TrimSpace(email) == "" || strings.TrimSpace(password) == "" {
+		err = newEmptyCredentialsError()
 	}
-	if strings.TrimSpace(password) == "" {
-		errs = append(errs, errors.New("Password should not be empty"))
-	}
-	return errs
+	return err
 }
 
-func (c Client) GetTranslations(word string) ([]error, Word) {
+// GetTranslations returns translations of a word
+func (c Client) GetTranslations(word string) (Word, error) {
 	req := TranslationRequest{
 		Word: word,
 	}
+	var err error
 
 	translations := Word{}
-	errs := c.get(translateUrl, req, &translations)
-	if strings.TrimSpace(translations.ErrorMsg) != "" {
-		errs = append(errs, errors.New("Something went wrong: "+translations.ErrorMsg))
+
+	if err = c.get(translateURL, req, &translations); err != nil {
+		return translations, err
 	}
 
-	return errs, translations
+	if strings.TrimSpace(translations.ErrorMsg) != "" {
+		err = newResponseError(translations.ErrorMsg)
+	}
+
+	return translations, err
 }
 
-func (c Client) AddWord(word, translation string) ([]error, Word) {
+// AddWord adds word with translation to LinguaLeo
+func (c Client) AddWord(word, translation string) (Word, error) {
 	req := AddWordRequest{
 		Word:        word,
 		Translation: translation,
 	}
 
+	var err error
+
 	var result Word
-	errs := c.get(addWordUrl, req, &result)
+
+	if err = c.get(addWordURL, req, &result); err == nil {
+		return result, err
+	}
 	if strings.TrimSpace(result.ErrorMsg) != "" {
-		errs = append(errs, errors.New("Something went wrong: "+result.ErrorMsg))
+		err = newResponseError(result.ErrorMsg)
 	}
 
-	return errs, result
+	return result, err
 }

@@ -10,38 +10,38 @@ var leoClient api.Client
 
 func getClient() api.Client {
 	if leoClient == (api.Client{}) {
-		var errs []error = nil
+		var err error
 
 		config := configuration.GetConfig()
 
-		errs, leoClient = api.NewClient(config.LinguaLeo.Email, config.LinguaLeo.Password)
-		if errs != nil {
-			log.Fatalf("%v \n", errs)
+		leoClient, err = api.NewClient(config.LinguaLeo.Email, config.LinguaLeo.Password)
+		if err != nil {
+			log.Fatalf("%v \n", err)
 		}
 	}
 	return leoClient
 }
 
 func GetTranslations(word string) api.Word {
-	errs, translations := getClient().GetTranslations(word)
+	translations, errs := getClient().GetTranslations(word)
 	if errs != nil {
 		log.Fatalf("%v \n", errs)
 	}
 	return translations
 }
 
-func AddWordWithTranslation(word string, translation string) []error {
-	errs, _ := getClient().AddWord(word, translation)
-	if errs != nil {
-		log.Fatalf("%v \n", errs)
+func AddWordWithTranslation(word string, translation string) error {
+	_, err := getClient().AddWord(word, translation)
+	if err != nil {
+		log.Fatalf("%v \n", err)
 	}
-	return errs
+	return err
 }
 
 func AddWord(word string) {
 	translations := GetTranslations(word)
 	if len(translations.Translations) == 0 {
-		log.Fatalln("Translation not found for word \"" + word + "\"")
+		log.Fatalf("Translation not found for word \"%s\"\n", word)
 	}
 	translation := translations.Translations[0].Value
 	errs := AddWordWithTranslation(word, translation)
